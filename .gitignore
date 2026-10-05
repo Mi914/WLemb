@@ -46,7 +46,9 @@ Thumbs.db
 
 # ignore directory
 /spacegraph/.ipynb_checkpoints
-/.venv
+/.venv311
+/space2vec.egg-info
+/dist
 # /spacegraph/model_dir
 # /spacegraph/data_collection
 
