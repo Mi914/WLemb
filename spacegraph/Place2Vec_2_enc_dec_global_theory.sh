@@ -51,3 +51,7 @@ python -m spacegraph_codebase.Place2Vec.train \
   --batch_size 512 \
   --log_every 50 \
   --val_every 50
+  # --max_iter 2 \
+  # --batch_size 64 \
+  # --log_every 1 \
+  # --val_every 1
