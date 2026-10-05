@@ -4,7 +4,7 @@ from torch.nn import init
 import torch.nn.functional as F
 
 import os
-import cPickle as pickle
+import pickle
 from collections import OrderedDict, defaultdict
 import random
 import json

@@ -1,5 +1,5 @@
 import os
-import cPickle as pickle
+import pickle
 import torch
 from collections import OrderedDict, defaultdict
 from multiprocessing import Process
@@ -18,7 +18,7 @@ def load_pointset(data_dir, point_data_path = "/pointset.pkl", num_feature_sampl
         num_feature_sample: each POI have different num of POI Type, we resample a fix number of POI Types for each POI
         embed_dim: embedding dimention
     '''
-    num_poi_type, point_list = pickle.load(open(data_dir+point_data_path, "rb"))
+    num_poi_type, point_list = pickle.load(open(data_dir+point_data_path, "rb"), encoding="latin1")
 
     feature_dim = embed_dim
     feature_embedding = torch.nn.Embedding(num_poi_type, embed_dim)
@@ -38,7 +38,8 @@ def make_data_samples(data_mode, pointset, data_dir, neighbor_tuple_path, neg_sa
     # pointset = load_pointset(data_dir, point_data_path)
 
     print("Load {} neighbor_tuple_list".format(data_mode))
-    neighbor_tuple_list = pickle.load(open(data_dir + "/" + neighbor_tuple_path, "rb"))
+    neighbor_tuple_list = pickle.load(open(data_dir + "/" + neighbor_tuple_path, "rb"), encoding="latin1")
+    # neighbor_tuple_list = pickle.load(open(data_dir + "/" + neighbor_tuple_path, "rb"))
 
     print("Do negative sampling and get NeighborGraph")
     ng_list = pointset.get_data_samples(neighbor_tuple_list, neg_sample_num, data_mode)

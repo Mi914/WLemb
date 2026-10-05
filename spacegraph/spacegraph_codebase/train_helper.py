@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import random
 import numpy as np
 from collections import defaultdict
-from sets import Set
+#from sets import Set
 
 from spacegraph_codebase.model import NeighGraphEncoderDecoder
 
@@ -92,7 +92,7 @@ def run_eval_per_type(model, pointset, ng_list, iteration, logger, typeid2root =
     for i, ng in enumerate(ng_list):
         type_list = list(pointset.pt_dict[ng.center_pt].features)
         if typeid2root is not None:
-            type_list = list(Set([typeid2root[typeid] for typeid in type_list]))
+            type_list = list(set([typeid2root[typeid] for typeid in type_list]))
         for pt_type in type_list:
             if pt_type not in type2rank:
                 type2rank[pt_type] = []
@@ -192,7 +192,7 @@ def run_train(model, optimizer, train_ng_list, val_ng_list, test_ng_list, logger
 
     if model is not None:
         random.shuffle(train_ng_list)
-        for i in xrange(max_iter):
+        for i in range(max_iter):
             # switch to training mode
             model.train()
             optimizer.zero_grad()
@@ -272,7 +272,7 @@ def run_joint_train(global_model, relative_model, join_model,
     conv_glb_hit10 = None
 
     random.shuffle(train_ng_list)
-    for i in xrange(max_iter):
+    for i in range(max_iter):
         
         if not relative_conv:
             # we need to train relative_model

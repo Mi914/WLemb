@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
 
-import cPickle as pickle
+import pickle
 import logging
 import random
 import time
