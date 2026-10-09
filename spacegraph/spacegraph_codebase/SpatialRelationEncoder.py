@@ -132,6 +132,56 @@ def _cal_freq_list(freq_init, frequency_num, max_radius, min_radius):
 
     return freq_list
 
+class WaveletMultisolSpatialRelationEncoder(nn.Module):
+    """
+    Given a list of (deltaX,deltaY), 
+    divide the space into grids, each point is using the grid embedding it falls into
+
+    """
+    def __init__(self, spa_embed_dim, coord_dim = 2, ffn = None):
+        """
+        Args:
+            spa_embed_dim: the output spatial relation embedding dimention
+            coord_dim: the dimention of space, 2D, 3D, or other
+        """
+        super(WaveletMultisolSpatialRelationEncoder, self).__init__()
+        self.spa_embed_dim = spa_embed_dim 
+        self.coord_dim = coord_dim 
+
+        self.input_embed_dim = 4
+
+        self.ffn = ffn
+
+    def make_input_embeds(self, coords):
+
+    def forward(self, coords):
+        """
+        Given a list of coords (deltaX, deltaY), give their spatial relation embedding
+        Args:
+            coords: a python list with shape (batch_size, num_context_pt, coord_dim)
+        Return:
+            sprenc: Tensor shape (batch_size, num_context_pt, spa_embed_dim)
+        """
+        spr_embeds = self.make_input_embeds(coords)
+
+        # spr_embeds: (batch_size, num_context_pt, input_embed_dim)
+        spr_embeds = torch.FloatTensor(spr_embeds) 
+
+        # sprenc: shape (batch_size, num_context_pt, spa_embed_dim)
+        # sprenc = torch.einsum("bnd,dk->bnk", (spr_embeds, self.post_mat))
+
+        # if self.use_post_mat:
+        #     sprenc = self.post_linear_1(spr_embeds)
+        #     sprenc = self.post_linear_2(self.dropout(sprenc))
+        #     sprenc = self.f_act(self.dropout(sprenc))
+        # else:
+        #     sprenc = self.post_linear(spr_embeds)
+        #     sprenc = self.f_act(self.dropout(sprenc))
+        if self.ffn is not None:
+            return self.ffn(spr_embeds)
+        else:
+            return spr_embeds
+
 class GridCellSpatialRelationEncoder(nn.Module):
     """
     Given a list of (deltaX,deltaY), encode them using the position encoding function
@@ -1578,6 +1628,7 @@ class PolarGridLookupSpatialRelationEncoder(nn.Module):
         # return sprenc
 
 class AodhaSpatialRelationEncoder(nn.Module):
+
     """
     Given a list of (deltaX,deltaY), 
     divide the space into grids, each point is using the grid embedding it falls into
@@ -1672,3 +1723,4 @@ class AodhaSpatialRelationEncoder(nn.Module):
                 return spa_embeds_
         else:
             return spa_embeds
+
