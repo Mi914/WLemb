@@ -8,6 +8,7 @@ import math
 
 from spacegraph_codebase.module import *
 from spacegraph_codebase.data_utils import *
+from spacegraph_codebase.wl_util import WLFuncForMultisol
 
 """
 A Set of position encoder
@@ -138,7 +139,8 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
     divide the space into grids, each point is using the grid embedding it falls into
 
     """
-    def __init__(self, spa_embed_dim, coord_dim = 2, ffn = None):
+    def __init__(self, spa_embed_dim, coord_dim = 2, ffn = None, extent = (-1710000, -1690000, 1610000, 1640000),
+                 min_scale = 1000, wlfunc = "db8"):
         """
         Args:
             spa_embed_dim: the output spatial relation embedding dimention
@@ -147,6 +149,11 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         super(WaveletMultisolSpatialRelationEncoder, self).__init__()
         self.spa_embed_dim = spa_embed_dim 
         self.coord_dim = coord_dim 
+
+        self.extent = extent
+        self.min_scale = min_scale
+
+        self.wlfunc = WLFuncForMultisol(wlfunc)
 
         self.input_embed_dim = 4
 
