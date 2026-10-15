@@ -152,6 +152,7 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
 
         self.extent = extent
         self.min_scale = min_scale
+        self.extent_scaled = (extent[0]//min_scale, extent[1]//min_scale, extent[2]//min_scale, extent[3]//min_scale)
 
         self.wlfunc = WLFuncForMultisol(wlfunc)
 
@@ -168,7 +169,7 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
             for x in range(self.extent[0], self.extent[1], scale):
                 for y in range(self.extent[2], self.extent[3], scale):
                     dim += 3
-                    if dim == self.min_scale: dim += 1
+                    if scale == self.min_scale: dim += 1
                     cnt += 1
             if cnt <= 1:
                 break
@@ -176,10 +177,52 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         print("WaveletMultisolSpatialRelationEncoder: input_embed_dim = ", dim)
         return dim
 
-    def make_input_embeds(self, coords):
-        pass
-        
+    def coord_standardize(self, coords):
+        x = coords[0]
+        y = coords[1]
+        return (x - self.extent[0]) / self.min_scale, (y - self.extent[2]) / self.min_scale
 
+    def make_input_embeds(self, coords):
+        coords_mat = np.asarray(coords, dtype=float)
+
+        assert coords_mat.ndim == 3
+        assert coords_mat.shape[2] == self.coord_dim
+
+        scale = self.min_scale
+        features = []
+        j = 0
+
+        while True:
+            cnt = 0
+
+            for x in range(self.extent[0], self.extent[1], scale):
+                for y in range(self.extent[2], self.extent[3], scale):
+                    cur_base = (x, y)
+
+                    cur_features = self.wlfunc(
+                        coords_mat, cur_base, scale, j
+                    )
+
+                    if j == 0:
+                        phph = self.wlfunc.phph(
+                            coords_mat, cur_base, scale, j
+                        )
+                        cur_features = torch.cat(
+                            [phph.unsqueeze(-1), cur_features],
+                            dim=-1
+                        )
+
+                    features.append(cur_features)
+                    cnt += 1
+
+            if cnt <= 1:
+                break
+
+            scale *= 2
+            j += 1
+
+        return torch.cat(features, dim=-1)
+    
     def forward(self, coords):
         """
         Given a list of coords (deltaX, deltaY), give their spatial relation embedding

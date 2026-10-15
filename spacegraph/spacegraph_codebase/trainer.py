@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from html import parser
 from spacegraph_codebase.utils import *
 from torch import optim
 from spacegraph_codebase.train_helper import run_train, run_eval, run_eval_per_type, run_joint_train
@@ -57,6 +58,12 @@ def make_args_parser():
         help='whether to use layer normalzation in spa_enc')
     parser.add_argument("--spa_enc_use_postmat", type=str, default='T',
         help='whether to use post matrix in spa_enc')
+
+    # wavelet encoder
+    parser.add_argument("--min_scale", type=int, default=1000,
+        help="Minimum spatial scale for wavelet encoding")
+    parser.add_argument("--wl_func", type=str, default="db4",
+        help="Wavelet function name (e.g. haar, db2, db4, sym4)")
 
             
     # global space/position encoder
@@ -170,6 +177,11 @@ def make_args_combine(args):
             freq_init=args.freq_init,
             spa_enc_use_layn=args.spa_enc_use_layn,
             spa_enc_use_postmat=args.spa_enc_use_postmat)
+    if args.spa_enc == "wlmultisol":
+        args_spa_enc += "-{min_scale:d}-{wl_func:s}".format(
+            min_scale=args.min_scale,
+            wl_func=args.wl_func
+        )
     args_g_spa_enc = "-{g_spa_enc:s}-{g_spa_embed_dim:d}-{g_freq:d}-{g_max_radius:.1f}-{g_min_radius:.1f}-{g_spa_f_act:s}-{g_freq_init:s}-{g_spa_enc_use_layn:s}-{g_spa_enc_use_postmat:s}".format(
             g_spa_enc=args.g_spa_enc,
             g_spa_embed_dim=args.g_spa_embed_dim,
