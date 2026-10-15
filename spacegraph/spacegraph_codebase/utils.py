@@ -14,6 +14,7 @@ from spacegraph_codebase.encoder import *
 from spacegraph_codebase.SpatialRelationEncoder import *
 from spacegraph_codebase.decoder import *
 from spacegraph_codebase.model import *
+from spacegraph_codebase.wl_util import *
 
 def cudify(feature_embedding):
     '''
@@ -119,7 +120,18 @@ def get_spa_encoder(args, model_type, spa_enc_type, pointset, spa_embed_dim, coo
         use_post_mat = True
     else:
         use_post_mat = False
-    if spa_enc_type == "gridcell":
+    if spa_enc_type == "wlmultisol":
+        ffn = get_ffn(args,
+            input_dim=calc_input_dim_Multisol(min_scale = args.min_scale),
+            f_act = f_act,
+            context_str = "WaveletMultisolSpatialRelationEncoder")
+        spa_enc = WaveletMultisolSpatialRelationEncoder(
+            spa_embed_dim, 
+            coord_dim = coord_dim,
+            ffn = ffn,
+            min_scale = args.min_scale,
+            wlfunc = args.wl_func)
+    elif spa_enc_type == "gridcell":
         ffn = get_ffn(args,
             input_dim=int(4 * frequency_num),
             f_act = f_act,
