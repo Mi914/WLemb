@@ -155,11 +155,30 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
 
         self.wlfunc = WLFuncForMultisol(wlfunc)
 
-        self.input_embed_dim = 4
+        self.input_embed_dim = self.cal_input_dim()
 
         self.ffn = ffn
 
+    def cal_input_dim(self):
+        # compute the dimention of the encoded spatial relation embedding
+        scale = self.min_scale
+        dim = 0
+        while True:
+            cnt = 0 
+            for x in range(self.extent[0], self.extent[1], scale):
+                for y in range(self.extent[2], self.extent[3], scale):
+                    dim += 3
+                    if dim == self.min_scale: dim += 1
+                    cnt += 1
+            if cnt <= 1:
+                break
+            scale *= 2
+        print("WaveletMultisolSpatialRelationEncoder: input_embed_dim = ", dim)
+        return dim
+
     def make_input_embeds(self, coords):
+        pass
+        
 
     def forward(self, coords):
         """
