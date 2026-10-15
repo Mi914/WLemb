@@ -1,4 +1,5 @@
 wl_util.pyで関数設定
 SpatialRelationEncoder.pyでエンコーダ作成
 utils.pyでget_spa_encoder変更
-trainer.pyで
+trainer.pyでmake_args_parserとmake_args_combine変更
+bash作成
