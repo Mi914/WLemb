@@ -345,3 +345,30 @@ def get_enc_dec(model_type, pointset, enc, spa_enc = None,
 
     return enc_dec
 
+class StochasticGate(nn.Module):
+    def __init__(self, input_dim, sigma=0.5):
+        super().__init__()
+
+        self.mu = nn.Parameter(torch.full((input_dim,), 0.5))
+        self.sigma = sigma
+
+    def forward(self, x):
+        if self.training:
+            noise = torch.randn_like(self.mu) * self.sigma
+            z = torch.clamp(self.mu + noise, 0.0, 1.0)
+        else:
+            z = torch.clamp(self.mu, 0.0, 1.0)
+
+        return x * z
+
+    def regularization(self):
+        # Standard normal CDF
+        prob = 0.5 * (
+            1 + torch.erf(
+                self.mu / (self.sigma * math.sqrt(2))
+            )
+        )
+        return prob.sum()
+
+    def selected_features(self):
+        return (self.mu.detach() > 0)

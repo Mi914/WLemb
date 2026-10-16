@@ -236,6 +236,10 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         # spr_embeds: (batch_size, num_context_pt, input_embed_dim)
         spr_embeds = torch.FloatTensor(spr_embeds) 
 
+        # FFNのパラメータと同じデバイスへ転送
+        device = next(self.ffn.parameters()).device
+        spr_embeds = spr_embeds.to(device)
+
         # sprenc: shape (batch_size, num_context_pt, spa_embed_dim)
         # sprenc = torch.einsum("bnd,dk->bnk", (spr_embeds, self.post_mat))
 
