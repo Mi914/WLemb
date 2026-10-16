@@ -196,8 +196,21 @@ def run_train(model, optimizer, train_ng_list, val_ng_list, test_ng_list, logger
             # switch to training mode
             model.train()
             optimizer.zero_grad()
-            loss = run_batch(train_ng_list, model, i, batch_size, do_full_eval=True) # use all 10 neg samples
+
+            # 既存のタスク損失
+            task_loss = run_batch(
+                train_ng_list, model, i, batch_size,
+                do_full_eval=True
+            )  # use all 10 neg samples
+
+            # ゲートが存在する場合のみ正則化項を追加
+            if hasattr(model.g_spa_enc, "stgate") and model.g_spa_enc.stgate is not None:
+                lambda_stg = model.g_spa_enc.stgate.lambda_stg
+                stg_loss = model.g_spa_enc.stgate.regularization()
+                loss = task_loss + lambda_stg * stg_loss
+
             losses, ema_loss = update_loss(loss.item(), losses, ema_loss)
+            
             loss.backward()
             optimizer.step()
 

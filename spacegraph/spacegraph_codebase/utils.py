@@ -346,11 +346,12 @@ def get_enc_dec(model_type, pointset, enc, spa_enc = None,
     return enc_dec
 
 class StochasticGate(nn.Module):
-    def __init__(self, input_dim, sigma=0.5):
+    def __init__(self, input_dim, sigma=0.5, lambda_stg=0.01):
         super().__init__()
 
         self.mu = nn.Parameter(torch.full((input_dim,), 0.5))
         self.sigma = sigma
+        self.lambda_stg = lambda_stg
 
     def forward(self, x):
         if self.training:
