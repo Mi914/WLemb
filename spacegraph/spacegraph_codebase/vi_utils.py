@@ -10,7 +10,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from collections import Counter
 import json
 from pyproj import Proj, transform
-import mplleaflet
+# import mplleaflet
 import numpy as np
 
 import torch
@@ -50,13 +50,14 @@ def make_enc_map(model_type, cluster_labels, num_cluster, extent, margin,
     if img_path:
         fig.savefig(img_path, dpi=300)
 
-def spa_enc_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval, coords, tsne_comp = 4):
+# def spa_enc_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval, coords, tsne_comp = 4):
+def spa_enc_embed_clustering(model_type,enc_dec, num_cluster, coords):
 
     
     # shape: (num_y*num_x, embed_dim)
     res = enc_dec.spa_enc.forward(coords)
 
-    res_data = res.data.tolist()
+    res_data = res.detach().cpu().numpy()
     res_np = np.asarray(res_data)
 
     num_y,num_x,embed_dim = res_np.shape
@@ -65,12 +66,13 @@ def spa_enc_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster,
 #     embeds = TSNE(n_components=tsne_comp).fit_transform(embeds)
     
     
-    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, affinity="cosine", linkage="complete").fit(embeds)
+    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, metric="cosine", linkage="complete").fit(embeds)
     cluster_labels = np.reshape(embed_clusters.labels_, (num_y, num_x))
 
     return embeds, cluster_labels
 
-def spa_enc_head_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval, coords, tsne_comp = 4):
+# def spa_enc_head_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval, coords, tsne_comp = 4):
+def spa_enc_head_embed_clustering(enc_dec, num_cluster, coords):
 
     
     # shape: (num_y*num_x, embed_dim)
@@ -86,7 +88,7 @@ def spa_enc_head_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_clu
 #     embeds = TSNE(n_components=tsne_comp).fit_transform(embeds)
     
     
-    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, affinity="cosine", linkage="complete").fit(embeds)
+    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, metric="cosine", linkage="complete").fit(embeds)
     cluster_labels = np.reshape(embed_clusters.labels_, (num_y, num_x))
 
     return embeds, cluster_labels
@@ -95,18 +97,18 @@ def visualize_encoder(module, layername, coords, extent, num_ch = 8, img_path=No
     if layername == "input_emb":
         res = module.make_input_embeds(coords)
         if type(res) == torch.Tensor:
-            res = res.data.numpy()
+            res = res.detach().cpu().numpy()
         elif type(res) == np.ndarray:
             res = res
-        print res.shape
+        print(res.shape)
         res_np = res
     elif layername == "output_emb":       
         res = module.forward(coords)
         embed_dim = res.size()[2]
-        res_data = res.data.tolist()
+        res_data = res.detach().cpu().numpy()
         res_np = np.asarray(res_data)
 
-    num_rows = num_ch/8
+    num_rows = num_ch//8
  
     plt.figure(figsize=(28, 50))
 
@@ -129,15 +131,16 @@ def visualize_encoder(module, layername, coords, extent, num_ch = 8, img_path=No
 
 
 
-def visualize_nn_all(enc_dec, layername, dataset, model_type, spa_enc, coords, extent):
+# def visualize_nn_all(enc_dec, layername, dataset, model_type, spa_enc, coords, extent):
+def visualize_nn_all(module, layername, coords, extent):
     if layername == "input_emb":
         res = module.make_input_embeds(coords)
-        print res.shape
+        print(res.shape)
         res_np = res
     elif layername == "output_emb":       
         res = module.forward(coords)
         embed_dim = res.size()[2]
-        res_data = res.data.tolist()
+        res_data = res.detach().cpu().numpy()
         res_np = np.asarray(res_data)
 
     plt.figure(figsize=(128, 155))
@@ -156,7 +159,8 @@ def visualize_nn_all(enc_dec, layername, dataset, model_type, spa_enc, coords, e
 
 
 
-def nn_dist_curve(enc_dec, dataset, model_type, spa_enc):
+# def nn_dist_curve(enc_dec, dataset, model_type, spa_enc):
+def nn_dist_curve(enc_dec):
     radius = 10000
     extent = (-radius, radius, -radius, radius)
     coords = []
@@ -172,7 +176,7 @@ def nn_dist_curve(enc_dec, dataset, model_type, spa_enc):
     module = enc_dec.spa_enc
     res = module.forward(coords)
     # embed_dim = res.size()[2]
-    res_data = res.data.tolist()
+    res_data = res.detach().cpu().numpy()
     res_np = np.asarray(res_data)
     
     num_y,num_x,embed_dim = res_np.shape
@@ -184,28 +188,68 @@ def nn_dist_curve(enc_dec, dataset, model_type, spa_enc):
     act = res_np[:,:,10].reshape((num_y*num_x))
     plt.scatter(dist, act, s=0.5)
 
+    plt.show()
+
     
-def g_spa_enc_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval):
-    coords = []
-#     interval = 500
-    extent = (-1710000, -1690000, 1610000, 1640000)
-    # latitude
-    for y in range(extent[2], extent[3]+interval, interval):
-        coord = []
-    #     longitude
-        for x in range(extent[0], extent[1]+interval, interval):
-            coord.append([x,y])
-        coords.append(coord)
-        
+# def g_spa_enc_embed_clustering(enc_dec, dataset, model_type, spa_enc, num_cluster, interval):
+import numpy as np
+import torch
+from sklearn.cluster import MiniBatchKMeans
+from sklearn.preprocessing import normalize
+
+def g_spa_enc_embed_clustering(enc_dec, num_cluster, coords):
+
+    module = enc_dec.g_spa_enc
+    module.eval()
+
+    with torch.no_grad():
+        spa_embeds = module.forward(coords)
+
+    num_y, num_x, embed_dim = spa_embeds.shape
+
+    # Tensor -> NumPy（GPU対応）
+    embeds = (
+        spa_embeds
+        .detach()
+        .cpu()
+        .numpy()
+        .reshape(-1, embed_dim)
+        .astype(np.float32)
+    )
+
+    # cosine距離に近いクラスタリングにするため正規化
+    embeds_normalized = normalize(embeds, norm="l2")
+
+    model = MiniBatchKMeans(
+        n_clusters=num_cluster,
+        batch_size=2048,
+        random_state=42,
+        n_init=10
+    )
+
+    labels = model.fit_predict(embeds_normalized)
+
+    cluster_labels = labels.reshape(num_y, num_x)
+
+    return embeds, cluster_labels
+
+def g_spa_enc_head_embed_clustering(enc_dec, num_cluster, coords):
+
     
     # shape: (num_y*num_x, embed_dim)
-    spa_embeds = enc_dec.g_spa_enc.forward(coords)
-    num_y, num_x, _ = spa_embeds.size()
-    spa_embeds = spa_embeds.view(num_y*num_x, -1)
-    embeds = spa_embeds.data.tolist()
+#     res = enc_dec.spa_enc.forward(coords)
+    res = enc_dec.g_spa_enc.make_input_embeds(coords)
+
+
+    res_np = res
+
+    num_y,num_x,embed_dim = res_np.shape
+    embeds = np.reshape(res_np, (num_y*num_x, -1))
+    
+#     embeds = TSNE(n_components=tsne_comp).fit_transform(embeds)
     
     
-    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, affinity="cosine", linkage="average").fit(embeds)
+    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, metric="cosine", linkage="complete").fit(embeds)
     cluster_labels = np.reshape(embed_clusters.labels_, (num_y, num_x))
 
     return embeds, cluster_labels

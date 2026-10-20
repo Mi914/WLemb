@@ -374,7 +374,7 @@ class StochasticGate(nn.Module):
                 self.mu / (self.sigma * math.sqrt(2))
             )
         )
-        return prob.sum()
+        return prob.mean()
 
     def selected_features(self):
         return (self.mu.detach() > 0)

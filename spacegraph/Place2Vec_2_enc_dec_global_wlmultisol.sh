@@ -17,9 +17,6 @@ python -m spacegraph_codebase.Place2Vec.train \
   --freq_init geometric \
   --spa_enc_use_layn F \
   --spa_enc_use_postmat T \
-  --min_scale 1000 \
-  --wl_func db4 \
-  --g_spa_enc wlmultisol \
   --g_spa_embed_dim 64 \
   --g_freq 32 \
   --g_max_radius 40000 \
@@ -49,8 +46,11 @@ python -m spacegraph_codebase.Place2Vec.train \
   --act sigmoid \
   --opt adam \
   --lr 0.001 \
+  --g_spa_enc wlmultisol \
+  --wl_func db4 \
+  --min_scale 1000 \
   --stg_sigma 0.5 \
-  --stg_lambda 0.00001 \
+  --stg_lambda 0.1 \
   --max_iter 2500 \
   --batch_size 512 \
   --log_every 50 \

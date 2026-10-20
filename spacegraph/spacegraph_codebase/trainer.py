@@ -89,7 +89,7 @@ def make_args_parser():
     # stochastic gate
     parser.add_argument("--stg_sigma", type=float, default=0.5,
         help='The sigma parameter for the stochastic gate')
-    parser.add_argument("--stg_lambda", type=float, default=1e-4,
+    parser.add_argument("--stg_lambda", type=float, default=0,
         help='The lambda parameter for the stochastic gate')
 
     # ffn
@@ -205,6 +205,14 @@ def make_args_combine(args):
     else:
         args_spa_enc_combined = args_spa_enc + args_g_spa_enc
 
+    if args.stg_lambda == 0:
+        args_stg = ""
+    else:
+        args_stg = "-{stg_sigma:.2f}-{stg_lambda:.6f}".format(
+            stg_sigma=args.stg_sigma,
+            stg_lambda=args.stg_lambda
+        )
+
     args_ffn = "-{num_hidden_layer:d}-{hidden_dim:d}-{use_layn:s}-{skip_connection:s}".format(
             num_hidden_layer = args.num_hidden_layer, 
             hidden_dim = args.hidden_dim, 
@@ -226,7 +234,7 @@ def make_args_combine(args):
             decoder_use_layn=args.decoder_use_layn,
             decoder_use_postmat=args.decoder_use_postmat)
 
-    args_combine = "/{data:s}-{num_context_sample:d}-{embed_dim:d}-{dropout:.1f}-{enc_agg:s}-{model_type:s}-{num_rbf_anchor_pts:d}-{rbf_kernal_size:.1f}-{rbf_kernal_size_ratio:.2f}{args_spa_enc_combined:s}-{args_ffn:s}-{use_dec:s}{args_init_decoder:s}{args_decoder:s}-{join_dec_type:s}-{act:s}-{opt:s}-{lr:.6f}-{batch_size:d}".format(
+    args_combine = "/{data:s}-{num_context_sample:d}-{embed_dim:d}-{dropout:.1f}-{enc_agg:s}-{model_type:s}-{num_rbf_anchor_pts:d}-{rbf_kernal_size:.1f}-{rbf_kernal_size_ratio:.2f}{args_spa_enc_combined:s}-{args_stg:s}-{args_ffn:s}-{use_dec:s}{args_init_decoder:s}{args_decoder:s}-{join_dec_type:s}-{act:s}-{opt:s}-{lr:.6f}-{batch_size:d}".format(
             data=args.data_dir.strip().split("/")[-2],
             num_context_sample=args.num_context_sample,
             embed_dim=args.embed_dim,
@@ -239,6 +247,8 @@ def make_args_combine(args):
             rbf_kernal_size_ratio=args.rbf_kernal_size_ratio,
 
             args_spa_enc_combined=args_spa_enc_combined,
+
+            args_stg=args_stg,
 
             args_ffn=args_ffn,
 
@@ -424,7 +434,36 @@ class Trainer():
         print("create model from {}".format(self.args_combine + ".pth"))
         self.logger.info("Save file at {}".format(self.args_combine + ".pth"))
 
-        
+    def log_stg(self):
+        if self.g_spa_enc is None:
+            return
+
+        stg = self.g_spa_enc.stg  # 実際の属性名に合わせる
+
+        with torch.no_grad():
+            mu = stg.mu.detach()
+            sigma = stg.sigma
+
+            # ゲートが正になる確率
+            prob = torch.special.ndtr(mu / sigma)
+
+            self.logger.info(
+                "STG: total=%d, selected(p>0.5)=%d, "
+                "expected_active=%.2f, mean_prob=%.4f",
+                prob.numel(),
+                (prob > 0.5).sum().item(),
+                prob.sum().item(),
+                prob.mean().item()
+            )
+
+            self.logger.info(
+                "mu_min = %.4f, mu_max = %.4f, mu_mean = %.4f, (mu<=0).sum() = %d",
+                mu.min().item(),
+                mu.max().item(),
+                mu.mean().item(),
+                (mu <= 0).sum().item(),
+            )
+    
     def load_model(self):
         self.logger.info("Load model from {}".format(self.model_file))
         self.enc_dec.load_state_dict(torch.load(self.model_file))
@@ -464,5 +503,8 @@ class Trainer():
                     val_every=self.args.val_every, 
                     tol=self.args.tol,
                     model_file=self.model_file)
+
+        self.log_stg()
+
         if self.enc_dec is not None:
             torch.save(self.enc_dec.state_dict(), self.model_file)

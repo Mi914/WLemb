@@ -204,12 +204,43 @@ def run_train(model, optimizer, train_ng_list, val_ng_list, test_ng_list, logger
             )  # use all 10 neg samples
 
             # ゲートが存在する場合のみ正則化項を追加
-            if hasattr(model.g_spa_enc, "stgate") and model.g_spa_enc.stgate is not None:
-                lambda_stg = model.g_spa_enc.stgate.lambda_stg
-                stg_loss = model.g_spa_enc.stgate.regularization()
+            if hasattr(model.g_spa_enc, "stg") and model.g_spa_enc.stg is not None:
+                lambda_stg = model.g_spa_enc.stg.lambda_stg
+                stg_loss = model.g_spa_enc.stg.regularization()
                 loss = task_loss + lambda_stg * stg_loss
             else:
                 loss = task_loss
+            
+            stg = getattr(model.g_spa_enc, "stg", None)
+            # 勾配を個別に調べる（backwardより前）
+            if stg is not None and i % log_every == 0:
+                grad_task = torch.autograd.grad(
+                    task_loss,
+                    stg.mu,
+                    retain_graph=True,
+                    allow_unused=True
+                )[0]
+
+                grad_reg = torch.autograd.grad(
+                    stg_loss,
+                    stg.mu,
+                    retain_graph=True,
+                    allow_unused=True
+                )[0]
+
+                logger.info(
+                    "Grad task: %s, Grad reg: %s",
+                    None if grad_task is None else grad_task.norm().item(),
+                    None if grad_reg is None else grad_reg.norm().item()
+                )
+
+                logger.info(
+                    "task_loss=%.6f, stg_loss=%.6f, total_loss=%.6f",
+                    task_loss.item(),
+                    stg_loss.item(),
+                    loss.item()
+                )
+                    
 
             losses, ema_loss = update_loss(loss.item(), losses, ema_loss)
             
@@ -219,6 +250,7 @@ def run_train(model, optimizer, train_ng_list, val_ng_list, test_ng_list, logger
             loss_val = run_batch(val_ng_list, model, i, batch_size, do_full_eval=False) # sample 10 neg samples
             losses_val, ema_loss_val = update_loss(loss_val.item(), losses_val, ema_loss_val)
 
+            
             if i % log_every == 0:
                 logger.info("Iter: {:d}; Train ema_loss: {:f}".format(i, ema_loss))
                 logger.info("Iter: {:d}; Validate ema_loss: {:f}".format(i, ema_loss_val))
