@@ -163,6 +163,42 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
             assert self.stg.mu.numel() == self.input_embed_dim
         self.ffn = ffn
 
+        # 基底点・スケール・レベルの生成
+        bases = []
+        scales = []
+        js = []
+
+        scale = self.min_scale
+        j = 0
+
+        while True:
+            xs = torch.arange(self.extent[0], self.extent[1], scale)
+            ys = torch.arange(self.extent[2], self.extent[3], scale)
+
+            grid_x, grid_y = torch.meshgrid(xs, ys, indexing="ij")
+            cur_bases = torch.stack(
+                [grid_x.flatten(), grid_y.flatten()], dim=-1
+            )
+
+            cnt = cur_bases.shape[0]
+
+            bases.append(cur_bases)
+            scales.append(torch.full((cnt,), scale, dtype=torch.float32))
+            js.append(torch.full((cnt,), j, dtype=torch.float32))
+
+            if j == 0:
+                self.n_level0 = cnt
+
+            if cnt <= 1:
+                break
+
+            scale *= 2
+            j += 1
+
+        self.register_buffer("bases", torch.cat(bases, dim=0).float())
+        self.register_buffer("scales", torch.cat(scales, dim=0))
+        self.register_buffer("js", torch.cat(js, dim=0))
+
 
     def cal_input_dim(self):
         # compute the dimention of the encoded spatial relation embedding
@@ -187,45 +223,40 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         return (x - self.extent[0]) / self.min_scale, (y - self.extent[2]) / self.min_scale
 
     def make_input_embeds(self, coords):
-        coords_mat = np.asarray(coords, dtype=float)
+        coords = torch.as_tensor(
+            coords, dtype=torch.float32, device=self.bases.device
+        )
 
-        assert coords_mat.ndim == 3
-        assert coords_mat.shape[2] == self.coord_dim
+        assert coords.ndim == 3
+        assert coords.shape[2] == self.coord_dim
 
-        scale = self.min_scale
-        features = []
-        j = 0
+        # (batch, n, basis * 3)
+        features = self.wlfunc(
+            coords, self.bases, self.scales, self.js
+        )
 
-        while True:
-            cnt = 0
+        # j=0 の基底に対して phi*phi を計算
+        phph = self.wlfunc.phph(
+            coords,
+            self.bases[:self.n_level0],
+            self.scales[:self.n_level0],
+            self.js[:self.n_level0]
+        )
 
-            for x in range(self.extent[0], self.extent[1], scale):
-                for y in range(self.extent[2], self.extent[3], scale):
-                    cur_base = (x, y)
+        # (batch, n, n_level0, 3)
+        level0 = features[..., :self.n_level0 * 3].unflatten(-1, (-1, 3))
 
-                    cur_features = self.wlfunc(
-                        coords_mat, cur_base, scale, j
-                    )
+        # (batch, n, n_level0, 4)
+        level0 = torch.cat([phph.unsqueeze(-1), level0], dim=-1)
 
-                    if j == 0:
-                        phph = self.wlfunc.phph(
-                            coords_mat, cur_base, scale, j
-                        )
-                        cur_features = torch.cat(
-                            [phph.unsqueeze(-1), cur_features],
-                            dim=-1
-                        )
+        # (batch, n, n_level0 * 4)
+        level0 = level0.flatten(start_dim=-2)
 
-                    features.append(cur_features)
-                    cnt += 1
-
-            if cnt <= 1:
-                break
-
-            scale *= 2
-            j += 1
-
-        return torch.cat(features, dim=-1)
+        # j>=1 の特徴量と結合
+        return torch.cat(
+            [level0, features[..., self.n_level0 * 3:]],
+            dim=-1
+        )
     
     def forward(self, coords):
         """
@@ -260,10 +291,6 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         # STG
         if self.stg is not None:
             spr_embeds = self.stg(spr_embeds)
-
-        print("STG:", self.stg.mu.device)
-        print("FFN:", next(self.ffn.parameters()).device)
-        print("Input:", spr_embeds.device)
 
         # FFN
         if self.ffn is not None:

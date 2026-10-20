@@ -49,6 +49,8 @@ python -m spacegraph_codebase.Place2Vec.train \
   --act sigmoid \
   --opt adam \
   --lr 0.001 \
+  --stg_sigma 0.5 \
+  --stg_lambda 0.00001 \
   --max_iter 2500 \
   --batch_size 512 \
   --log_every 50 \
