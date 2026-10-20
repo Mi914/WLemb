@@ -136,12 +136,19 @@ def visualize_nn_all(module, layername, coords, extent):
     if layername == "input_emb":
         res = module.make_input_embeds(coords)
         print(res.shape)
-        res_np = res
+        if isinstance(res, torch.Tensor):
+            res_np = res.detach().cpu().numpy()
+        else:
+            res_np = np.asarray(res)
     elif layername == "output_emb":       
         res = module.forward(coords)
         embed_dim = res.size()[2]
-        res_data = res.detach().cpu().numpy()
-        res_np = np.asarray(res_data)
+        # res_data = res.detach().cpu().numpy()
+        if isinstance(res, torch.Tensor):
+            res_np = res.detach().cpu().numpy()
+        else:
+            res_np = np.asarray(res)
+        # res_np = np.asarray(res_data)
 
     plt.figure(figsize=(128, 155))
     # plt.figure(figsize=(32, 155))
@@ -233,23 +240,66 @@ def g_spa_enc_embed_clustering(enc_dec, num_cluster, coords):
 
     return embeds, cluster_labels
 
+
 def g_spa_enc_head_embed_clustering(enc_dec, num_cluster, coords):
 
-    
-    # shape: (num_y*num_x, embed_dim)
-#     res = enc_dec.spa_enc.forward(coords)
-    res = enc_dec.g_spa_enc.make_input_embeds(coords)
+    module = enc_dec.g_spa_enc
+    module.eval()
 
+    with torch.no_grad():
+        res = module.make_input_embeds(coords)
 
-    res_np = res
+    if isinstance(res, torch.Tensor):
+        res_np = res.detach().cpu().numpy()
+    else:
+        res_np = np.asarray(res)
 
-    num_y,num_x,embed_dim = res_np.shape
-    embeds = np.reshape(res_np, (num_y*num_x, -1))
-    
-#     embeds = TSNE(n_components=tsne_comp).fit_transform(embeds)
-    
-    
-    embed_clusters = AgglomerativeClustering(n_clusters=num_cluster, metric="cosine", linkage="complete").fit(embeds)
-    cluster_labels = np.reshape(embed_clusters.labels_, (num_y, num_x))
+    num_y, num_x, embed_dim = res_np.shape
+
+    embeds = res_np.reshape(-1, embed_dim).astype(np.float32)
+
+    # ベクトルの方向に基づくクラスタリング
+    embeds_normalized = normalize(embeds, norm="l2")
+
+    model = MiniBatchKMeans(
+        n_clusters=num_cluster,
+        batch_size=2048,
+        random_state=42,
+        n_init=10
+    )
+
+    labels = model.fit_predict(embeds_normalized)
+
+    cluster_labels = labels.reshape(num_y, num_x)
 
     return embeds, cluster_labels
+
+def g_nn_dist_curve(enc_dec):
+    radius = 10000
+    extent = (-radius, radius, -radius, radius)
+    coords = []
+    interval  = 300
+    for y in range(extent[0], extent[1]+interval, interval):
+        coord = []
+        for x in range(extent[2], extent[3]+interval, interval):
+            coord.append([x,y])
+        coords.append(coord)
+    
+    coords = np.asarray(coords)
+    
+    module = enc_dec.g_spa_enc
+    res = module.forward(coords)
+    # embed_dim = res.size()[2]
+    res_data = res.detach().cpu().numpy()
+    res_np = np.asarray(res_data)
+    
+    num_y,num_x,embed_dim = res_np.shape
+    # dist_mat: (num_y,num_x)
+    dist_mat = np.sqrt(np.sum(np.power(coords, 2), axis = 2, keepdims = False))
+    dist = dist_mat.reshape((num_y*num_x))
+    
+
+    act = res_np[:,:,10].reshape((num_y*num_x))
+    plt.scatter(dist, act, s=0.5)
+
+    plt.show()
