@@ -8,7 +8,7 @@ import math
 
 from spacegraph_codebase.module import *
 from spacegraph_codebase.data_utils import *
-from spacegraph_codebase.wl_util import WLFuncForMultisol
+from spacegraph_codebase.wl_utils import WLFuncForMultisol
 
 """
 A Set of position encoder
@@ -139,7 +139,7 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
     divide the space into grids, each point is using the grid embedding it falls into
 
     """
-    def __init__(self, spa_embed_dim, coord_dim = 2, ffn = None, extent = (-1710000, -1690000, 1610000, 1640000),
+    def __init__(self, spa_embed_dim, coord_dim = 2, ffn = None, stg = None, extent = (-1710000, -1690000, 1610000, 1640000),
                  min_scale = 1000, wlfunc = "db8"):
         """
         Args:
@@ -158,7 +158,11 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
 
         self.input_embed_dim = self.cal_input_dim()
 
+        self.stg = stg
+        if self.stg is not None:
+            assert self.stg.mu.numel() == self.input_embed_dim
         self.ffn = ffn
+
 
     def cal_input_dim(self):
         # compute the dimention of the encoded spatial relation embedding
@@ -234,12 +238,14 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         spr_embeds = self.make_input_embeds(coords)
 
         # spr_embeds: (batch_size, num_context_pt, input_embed_dim)
-        spr_embeds = torch.FloatTensor(spr_embeds) 
+        spr_embeds = torch.as_tensor(spr_embeds) 
 
         # FFNのパラメータと同じデバイスへ転送
-        device = next(self.ffn.parameters()).device
+        # FFNまたはSTGのデバイスに合わせる
+        param = next(self.parameters(), None)
+        device = param.device if param is not None else spr_embeds.device
         spr_embeds = spr_embeds.to(device)
-
+        
         # sprenc: shape (batch_size, num_context_pt, spa_embed_dim)
         # sprenc = torch.einsum("bnd,dk->bnk", (spr_embeds, self.post_mat))
 
@@ -250,10 +256,21 @@ class WaveletMultisolSpatialRelationEncoder(nn.Module):
         # else:
         #     sprenc = self.post_linear(spr_embeds)
         #     sprenc = self.f_act(self.dropout(sprenc))
+
+        # STG
+        if self.stg is not None:
+            spr_embeds = self.stg(spr_embeds)
+
+        print("STG:", self.stg.mu.device)
+        print("FFN:", next(self.ffn.parameters()).device)
+        print("Input:", spr_embeds.device)
+
+        # FFN
         if self.ffn is not None:
             return self.ffn(spr_embeds)
         else:
             return spr_embeds
+        
 
 class GridCellSpatialRelationEncoder(nn.Module):
     """

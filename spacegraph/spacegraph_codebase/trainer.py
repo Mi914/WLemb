@@ -86,6 +86,12 @@ def make_args_parser():
     parser.add_argument("--g_spa_enc_use_postmat", type=str, default='T',
         help='whether to use post matrix in g_spa_enc')
 
+    # stochastic gate
+    parser.add_argument("--stg_sigma", type=float, default=0.5,
+        help='The sigma parameter for the stochastic gate')
+    parser.add_argument("--stg_lambda", type=float, default=1e-4,
+        help='The lambda parameter for the stochastic gate')
+
     # ffn
     parser.add_argument("--num_hidden_layer", type=int, default=3,
         help='The number of hidden layer in feedforward NN in the (global) space encoder')

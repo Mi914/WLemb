@@ -208,6 +208,8 @@ def run_train(model, optimizer, train_ng_list, val_ng_list, test_ng_list, logger
                 lambda_stg = model.g_spa_enc.stgate.lambda_stg
                 stg_loss = model.g_spa_enc.stgate.regularization()
                 loss = task_loss + lambda_stg * stg_loss
+            else:
+                loss = task_loss
 
             losses, ema_loss = update_loss(loss.item(), losses, ema_loss)
             
