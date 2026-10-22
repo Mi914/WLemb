@@ -13,6 +13,8 @@ def make_args_parser():
     parser.add_argument("--log_dir", type=str, default="./")
     parser.add_argument("--num_context_sample", type=int, default=10,
         help='The number of context points we can sample, maximum is 10')
+    parser.add_argument("--seed", type=int, default=0,
+        help='Random seed for reproducibility')
 
     # model
     parser.add_argument("--embed_dim", type=int, default=64,
@@ -87,6 +89,8 @@ def make_args_parser():
         help='whether to use post matrix in g_spa_enc')
 
     # stochastic gate
+    parser.add_argument("--use_stg", action='store_true',
+        help='whether to use stochastic gate in the global space encoder')
     parser.add_argument("--stg_sigma", type=float, default=0.5,
         help='The sigma parameter for the stochastic gate')
     parser.add_argument("--stg_lambda", type=float, default=0,
@@ -183,11 +187,6 @@ def make_args_combine(args):
             freq_init=args.freq_init,
             spa_enc_use_layn=args.spa_enc_use_layn,
             spa_enc_use_postmat=args.spa_enc_use_postmat)
-    if args.spa_enc == "wlmultisol":
-        args_spa_enc += "-{min_scale:d}-{wl_func:s}".format(
-            min_scale=args.min_scale,
-            wl_func=args.wl_func
-        )
     args_g_spa_enc = "-{g_spa_enc:s}-{g_spa_embed_dim:d}-{g_freq:d}-{g_max_radius:.1f}-{g_min_radius:.1f}-{g_spa_f_act:s}-{g_freq_init:s}-{g_spa_enc_use_layn:s}-{g_spa_enc_use_postmat:s}".format(
             g_spa_enc=args.g_spa_enc,
             g_spa_embed_dim=args.g_spa_embed_dim,
@@ -198,6 +197,11 @@ def make_args_combine(args):
             g_freq_init=args.g_freq_init,
             g_spa_enc_use_layn=args.g_spa_enc_use_layn,
             g_spa_enc_use_postmat=args.g_spa_enc_use_postmat)
+    if args.g_spa_enc == "wlmultisol":
+            args_g_spa_enc += "-{min_scale:d}-{wl_func:s}".format(
+                min_scale=args.min_scale,
+                wl_func=args.wl_func
+            )
     if args.model_type == "relative":
         args_spa_enc_combined = args_spa_enc
     elif args.model_type == "global":
@@ -205,8 +209,8 @@ def make_args_combine(args):
     else:
         args_spa_enc_combined = args_spa_enc + args_g_spa_enc
 
-    if args.stg_lambda == 0:
-        args_stg = ""
+    if args.use_stg == False:
+        args_stg = "NoGate"
     else:
         args_stg = "-{stg_sigma:.2f}-{stg_lambda:.6f}".format(
             stg_sigma=args.stg_sigma,
@@ -234,8 +238,9 @@ def make_args_combine(args):
             decoder_use_layn=args.decoder_use_layn,
             decoder_use_postmat=args.decoder_use_postmat)
 
-    args_combine = "/{data:s}-{num_context_sample:d}-{embed_dim:d}-{dropout:.1f}-{enc_agg:s}-{model_type:s}-{num_rbf_anchor_pts:d}-{rbf_kernal_size:.1f}-{rbf_kernal_size_ratio:.2f}{args_spa_enc_combined:s}-{args_stg:s}-{args_ffn:s}-{use_dec:s}{args_init_decoder:s}{args_decoder:s}-{join_dec_type:s}-{act:s}-{opt:s}-{lr:.6f}-{batch_size:d}".format(
+    args_combine = "/{data:s}-{seed:d}-{num_context_sample:d}-{embed_dim:d}-{dropout:.1f}-{enc_agg:s}-{model_type:s}-{num_rbf_anchor_pts:d}-{rbf_kernal_size:.1f}-{rbf_kernal_size_ratio:.2f}{args_spa_enc_combined:s}-{args_stg:s}-{args_ffn:s}-{use_dec:s}{args_init_decoder:s}{args_decoder:s}-{join_dec_type:s}-{act:s}-{opt:s}-{lr:.6f}-{batch_size:d}".format(
             data=args.data_dir.strip().split("/")[-2],
+            seed=args.seed,
             num_context_sample=args.num_context_sample,
             embed_dim=args.embed_dim,
             dropout=args.dropout,
@@ -504,7 +509,8 @@ class Trainer():
                     tol=self.args.tol,
                     model_file=self.model_file)
 
-        self.log_stg()
+        if self.args.use_stg:
+            self.log_stg()
 
         if self.enc_dec is not None:
             torch.save(self.enc_dec.state_dict(), self.model_file)

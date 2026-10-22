@@ -46,6 +46,7 @@ python -m spacegraph_codebase.Place2Vec.train \
   --act sigmoid \
   --opt adam \
   --lr 0.001 \
+  --seed 0 \
   --g_spa_enc wlmultisol \
   --wl_func db4 \
   --min_scale 1000 \
@@ -55,6 +56,7 @@ python -m spacegraph_codebase.Place2Vec.train \
   --batch_size 512 \
   --log_every 50 \
   --val_every 50 \
+  --use_stg \
   --cuda
   # --max_iter 2500 \
   # --batch_size 512 \

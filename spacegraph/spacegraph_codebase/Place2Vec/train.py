@@ -16,6 +16,12 @@ from spacegraph_codebase.trainer import *
 from torch import optim
 import numpy as np
 
+def set_seed(seed):
+    random.seed(seed)             # Python標準
+    np.random.seed(seed)          # NumPy
+    torch.manual_seed(seed)       # PyTorch CPU・CUDA
+    torch.cuda.manual_seed_all(seed)
+
 # define arguments
 parser = make_args_parser()
 args = parser.parse_args()
@@ -38,6 +44,7 @@ pointset, feature_embedding = load_pointset(data_dir=args.data_dir,
 if args.cuda:
     pointset.feature_embed_lookup = cudify(feature_embedding)
 
+set_seed(args.seed)
 
 # build NN model
 trainer = Trainer(args, pointset, train_ng_list, val_ng_list, test_ng_list, feature_embedding, console = True)

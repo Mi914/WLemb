@@ -122,9 +122,12 @@ def get_spa_encoder(args, model_type, spa_enc_type, pointset, spa_embed_dim, coo
         use_post_mat = False
     if spa_enc_type == "wlmultisol":
         input_dim = calc_input_dim_Multisol(min_scale = args.min_scale)
-        stg = StochasticGate(input_dim=input_dim,
+        if args.use_stg:
+            stg = StochasticGate(input_dim=input_dim,
             sigma=args.stg_sigma,
             lambda_stg=args.stg_lambda)
+        else:
+            stg = None
         ffn = get_ffn(args,
             input_dim=input_dim,
             f_act = f_act,
