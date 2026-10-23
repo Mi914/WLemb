@@ -204,25 +204,44 @@ import torch
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.preprocessing import normalize
 
-def g_spa_enc_embed_clustering(enc_dec, num_cluster, coords):
+def g_spa_enc_embed_clustering(enc_dec, num_cluster, coords, batch_size=32):
 
     module = enc_dec.g_spa_enc
     module.eval()
 
-    with torch.no_grad():
-        spa_embeds = module.forward(coords)
+    num_y, num_x, _ = coords.shape
 
-    num_y, num_x, embed_dim = spa_embeds.shape
+    # (num_y, num_x, 2) → (N, 2)
+    coords_flat = np.asarray(coords).reshape(-1, 2)
 
-    # Tensor -> NumPy（GPU対応）
-    embeds = (
-        spa_embeds
-        .detach()
-        .cpu()
-        .numpy()
-        .reshape(-1, embed_dim)
-        .astype(np.float32)
-    )
+    embeds_list = []
+
+    # バッチごとに空間埋め込みを計算
+    with torch.inference_mode():
+        for start in range(0, len(coords_flat), batch_size):
+
+            batch_coords = coords_flat[start:start + batch_size]
+
+            # (batch_size, 2) → (batch_size, 1, 2)
+            batch_coords = batch_coords[:, None, :]
+
+            spa_embeds = module.forward(batch_coords)
+
+            # Tensor → NumPy（GPU対応）
+            embeds_batch = (
+                spa_embeds
+                .detach()
+                .cpu()
+                .numpy()
+                .reshape(len(batch_coords), -1)
+                .astype(np.float32)
+            )
+
+            embeds_list.append(embeds_batch)
+
+            del spa_embeds
+
+    embeds = np.concatenate(embeds_list, axis=0)
 
     # cosine距離に近いクラスタリングにするため正規化
     embeds_normalized = normalize(embeds, norm="l2")
@@ -239,8 +258,6 @@ def g_spa_enc_embed_clustering(enc_dec, num_cluster, coords):
     cluster_labels = labels.reshape(num_y, num_x)
 
     return embeds, cluster_labels
-
-
 def g_spa_enc_head_embed_clustering(enc_dec, num_cluster, coords):
 
     module = enc_dec.g_spa_enc

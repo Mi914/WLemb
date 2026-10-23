@@ -49,6 +49,7 @@ Thumbs.db
 /.venv311
 /space2vec.egg-info
 /dist
+/spacegraph/experiments_[0-9]*
 # /spacegraph/model_dir
 # /spacegraph/data_collection
 
