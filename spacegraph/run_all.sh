@@ -1,14 +1,15 @@
 
 #!/bin/bash
+expname="experiments_1028"
 
-mkdir -p experiments_1028/run_logs
+mkdir -p ${expname}/run_logs
 
-for script in experiments_1028/scripts/*.sh; do
+for script in ${expname}/scripts/*.sh; do
     name=$(basename "$script" .sh)
 
     echo "===== Starting $name ====="
 
-    bash "$script" > "experiments_1028/run_logs/${name}.log" 2>&1
+    bash "$script" > "${expname}/run_logs/${name}.log" 2>&1
 
     status=$?
 
@@ -18,3 +19,5 @@ for script in experiments_1028/scripts/*.sh; do
         echo "FAILED: $name (exit code $status)"
     fi
 done
+
+echo "All scripts executed. Check ${expname}/run_logs for details."
