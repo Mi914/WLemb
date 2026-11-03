@@ -3,7 +3,6 @@ import shlex
 import pandas as pd
 from spacegraph_codebase.trainer import make_args_parser, make_args_combine
 import re
-from pathlib import Path
 from spacegraph_codebase.utils import *
 from spacegraph_codebase.Place2Vec.cur_data_utils import load_pointset
 from torch import optim
@@ -13,9 +12,9 @@ from matplotlib.patches import Rectangle, Patch
 from matplotlib.collections import PatchCollection
 import json
 from PIL import Image
+import torch
 
-
-
+"""accuracy metrics extraction from log file"""
 def extract_test_metrics(log_file):
     text = Path(log_file).read_text(
         encoding="utf-8", errors="replace"
@@ -302,13 +301,7 @@ def make_enc_dec(args):
     enc_dec.load_state_dict(torch.load(model_file))
     return enc_dec
 
-import numpy as np
-import matplotlib.pyplot as plt
-import torch
-from pathlib import Path
-
-
-def plot_stg_survival_by_scale(
+def plot_stg_survival_by_scale_multisol(
     module,
     threshold=0.5,
     save_dir=None,
@@ -391,7 +384,7 @@ def plot_stg_survival_by_scale(
         plt.show()
         plt.close(fig)
 
-def _extract_stg_coeff_by_scale(module):
+def _extract_stg_coeff_by_scale_multisol(module):
     """
     STGの mu を基底タイプごとに復元する。
     返り値:
@@ -463,7 +456,7 @@ def _extract_stg_coeff_by_scale(module):
     return result
 
 
-def plot_stg_basis_type_map(
+def plot_stg_basis_type_map_multisol(
     module,
     save_dir=None,
     show=True,
@@ -471,7 +464,7 @@ def plot_stg_basis_type_map(
     img_path="map_cache/las_vegas.png",
     img_extent_path="map_cache/las_vegas_extent.json"
 ):
-    data = _extract_stg_coeff_by_scale(module)
+    data = _extract_stg_coeff_by_scale_multisol(module)
 
     if img_path is not None:
         img_path = Path(img_path)
