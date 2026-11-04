@@ -14,6 +14,10 @@ import json
 from PIL import Image
 import torch
 
+from spacegraph_codebase.trainer import Trainer
+from spacegraph_codebase.data_utils import load_ng
+
+
 """accuracy metrics extraction from log file"""
 def extract_test_metrics(log_file):
     text = Path(log_file).read_text(
@@ -164,142 +168,54 @@ def make_results_df(exp_dir: Path):
     print(f"結果を {df_path} に保存しました。")
     return df
 
-
 def make_enc_dec(args):
-    args_combine = make_args_combine(args)
-    
-    log_file = args.log_dir + args_combine + ".log"
-    model_file = args.model_dir + args_combine + ".pth"
+    # 1. PointSetを読み込む
+    pointset, feature_embedding = load_pointset(
+        data_dir=args.data_dir,
+        embed_dim=args.embed_dim,
+        do_feature_sampling=False
+    )
 
-    logger = setup_logging(log_file, filemode='a')
-    
-    print("Loading PointSet data..")
-
-    pointset, feature_embedding = load_pointset(data_dir=args.data_dir, 
-                                                    embed_dim=args.embed_dim,
-                                                    do_feature_sampling = False)
     if args.cuda:
+        from spacegraph_codebase.utils import cudify
         pointset.feature_embed_lookup = cudify(feature_embedding)
-        
-    # make feature encoder
-    enc = get_encoder(pointset.feature_embed_lookup, feature_embedding, pointset, args.enc_agg)
 
-    if args.model_type == "relative" or args.model_type == "join" or args.model_type == "together":
-        # make relative space encoder
-        spa_enc = get_spa_encoder(args=args,
-                            model_type=args.model_type,
-                            spa_enc_type=args.spa_enc,
-                            pointset=None, 
-                            spa_embed_dim=args.spa_embed_dim, 
-                            coord_dim = 2, 
-                            frequency_num = args.freq, 
-                            max_radius = args.max_radius,
-                            # dropout = args.dropout,
-                            freq_init = args.freq_init)
-    else:
-        spa_enc = None
+    # 2. NeighborGraphを読み込む
+    data_dir = Path(args.data_dir)
 
-    if args.model_type == "global" or args.model_type == "join" or args.model_type == "together":
-        # make global space encoder
-        g_spa_enc = get_spa_encoder(args=args,
-                            model_type=args.model_type,
-                            spa_enc_type=args.g_spa_enc, 
-                            spa_embed_dim=args.g_spa_embed_dim,
-                            pointset=None, 
-                            coord_dim = 2, 
-                            frequency_num = args.g_freq, 
-                            max_radius = args.g_max_radius,
-                            # dropout = args.dropout,
-                            freq_init = args.g_freq_init)
-    else:
-        g_spa_enc = None
+    train_ng_list = load_ng(
+        str(data_dir / "neighborgraphs_training.pkl")
+    )
+    val_ng_list = load_ng(
+        str(data_dir / "neighborgraphs_validation.pkl")
+    )
+    test_ng_list = load_ng(
+        str(data_dir / "neighborgraphs_test.pkl")
+    )
 
-    # make decoder
-    if args.model_type == "relative" or args.model_type == "join" or args.model_type == "together":
+    # 3. 学習時と同じTrainerでモデルを構築
+    trainer = Trainer(
+        args=args,
+        pointset=pointset,
+        train_ng_list=train_ng_list,
+        val_ng_list=val_ng_list,
+        test_ng_list=test_ng_list,
+        feature_embedding=feature_embedding,
+        console=False
+    )
 
-        # make query embedding initial decoder
-        init_dec = get_context_decoder(dec_type=args.init_decoder_atten_type, 
-                            query_dim=args.embed_dim, 
-                            key_dim=args.embed_dim, 
-                            spa_embed_dim=args.spa_embed_dim, 
-                            g_spa_embed_dim=args.g_spa_embed_dim,
-                            have_query_embed = False, 
-                            num_attn = args.init_decoder_atten_num, 
-                            activation = args.init_decoder_atten_act, 
-                            f_activation = args.init_decoder_atten_f_act, 
-                            layn = args.init_decoder_use_layn, 
-                            use_postmat = args.init_decoder_use_postmat,
-                            dropout = args.dropout)
+    # 4. 学習済み重みをロード
+    model_path = Path(trainer.model_file)
+    if not model_path.is_file():
+        raise FileNotFoundError(model_path)
 
-        if args.use_dec == "T":
-            # make decoder
-            dec = get_context_decoder(dec_type=args.decoder_atten_type, 
-                                query_dim=args.embed_dim, 
-                                key_dim=args.embed_dim, 
-                                spa_embed_dim=args.spa_embed_dim, 
-                                g_spa_embed_dim=args.g_spa_embed_dim,
-                                have_query_embed = True, 
-                                num_attn = args.decoder_atten_num, 
-                                activation = args.decoder_atten_act, 
-                                f_activation = args.decoder_atten_f_act, 
-                                layn = args.decoder_use_layn, 
-                                use_postmat = args.decoder_use_postmat,
-                                dropout = args.dropout)
-        else:
-            dec = None
+    trainer.load_model()
 
-        if args.model_type == "join":
-            joint_dec = JointRelativeGlobalDecoder(feature_embed_dim = args.embed_dim, 
-                            f_act = args.act, 
-                            dropout = args.dropout,
-                            join_type = args.join_dec_type)
-        else:
-            joint_dec = None
+    # 5. 評価モードに変更
+    trainer.enc_dec.eval()
 
-    else:
-        init_dec = None
-        dec = None
-        joint_dec = None
+    return trainer.enc_dec
 
-    if args.model_type == "global" or args.model_type == "join":
-        # make global space decoder
-        g_spa_dec = DirectPositionEmbeddingDecoder(g_spa_embed_dim=args.g_spa_embed_dim, 
-                            feature_embed_dim=args.embed_dim, 
-                            f_act = args.act, 
-                            dropout = args.dropout)
-    else:
-        g_spa_dec = None
-
-
-
-
-    # if args.model_type == "global" or args.model_type == "relative":
-    # make encoder encoder
-    enc_dec = get_enc_dec(model_type=args.model_type, 
-                        pointset=pointset, 
-                        enc = enc, 
-                        spa_enc = spa_enc, 
-                        g_spa_enc = g_spa_enc, 
-                        g_spa_dec = g_spa_dec, 
-                        init_dec=init_dec, 
-                        dec=dec, 
-                        joint_dec=joint_dec, 
-                        activation = args.act, 
-                        num_context_sample = args.num_context_sample, 
-                        num_neg_resample = 10)
-
-    if args.cuda:
-        enc_dec.cuda()
-
-    if args.opt == "sgd":
-        optimizer = optim.SGD(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr, momentum=0)
-    elif args.opt == "adam":
-        optimizer = optim.Adam(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr)
-
-#     logger.info("Save file at {}".format(args_combine + ".pth"))
-    print("Load model from {}".format(args_combine + ".pth"))
-    enc_dec.load_state_dict(torch.load(model_file))
-    return enc_dec
 
 def plot_stg_survival_by_scale_multisol(
     module,

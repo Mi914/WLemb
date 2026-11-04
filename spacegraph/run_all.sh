@@ -1,6 +1,6 @@
 
 #!/bin/bash
-expname="experiments_1028"
+expname="experiments_1104"
 
 mkdir -p ${expname}/run_logs
 
